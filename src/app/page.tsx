@@ -1,103 +1,365 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Card, Input, Button, Spinner } from '@heroui/react';
+import Image from 'next/image';
+
+interface WeatherData {
+  temp: string;
+  condition: string;
+  humidity: number;
+  windSpeed: string;
+  windDirection: string;
+  detailedForecast: string;
+  isDaytime: boolean;
+  name: string;
+  icon: string;
+}
+
+interface Coordinates {
+  lat: number;
+  lon: number;
+}
+
+const SearchIcon = () => (
+  <svg
+    aria-hidden="true"
+    className="w-5 h-5 text-gray-400"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+    />
+  </svg>
+);
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [city, setCity] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [isUsingCurrentLocation, setIsUsingCurrentLocation] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
+  const getWeatherByCoordinates = async (coords: Coordinates) => {
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `/api/weather?lat=${coords.lat}&lon=${coords.lon}`
+      );
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch weather data');
+      }
+      const data = await response.json();
+      setWeatherData(data.weather);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch weather data');
+      setWeatherData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGetLocation = async () => {
+    setLocationLoading(true);
+    setError(null);
+    setCity('');
+
+    try {
+      if (!navigator.geolocation) {
+        throw new Error('Geolocation is not supported by your browser');
+      }
+
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      });
+
+      setIsUsingCurrentLocation(true);
+      await getWeatherByCoordinates({
+        lat: position.coords.latitude,
+        lon: position.coords.longitude
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to get location');
+      setWeatherData(null);
+      setIsUsingCurrentLocation(false);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    handleGetLocation();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!city.trim()) return;
+
+    setLoading(true);
+    setError(null);
+    setIsUsingCurrentLocation(false);
+
+    try {
+      const response = await fetch(`/api/weather?city=${encodeURIComponent(city)}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch weather data');
+      }
+      const data = await response.json();
+      setWeatherData(data.weather);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch weather data');
+      setWeatherData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A0A] p-8 bg-[url('/anime-pattern.png')] bg-opacity-[0.02]">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
+            Weather
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2 font-light tracking-wide">
+            Simple forecast
+          </p>
+        </div>
+
+        <Card className="backdrop-blur-md bg-white/80 dark:bg-black/50 shadow-2xl border-0 relative overflow-hidden">
+          <div className="absolute inset-0 bg-[url('/anime-dots.png')] opacity-[0.02]"></div>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-4 sm:p-6 relative">
+            <div className="space-y-2">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+                <div className="flex-1 relative">
+                  <Input
+                    type="text"
+                    placeholder="Enter city, ZIP code, or landmark"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="flex-1 bg-gray-50/50 dark:bg-gray-900/50"
+                    classNames={{
+                      input: "text-base sm:text-lg pl-12 pr-4 py-3 text-gray-900 dark:text-gray-100 font-light",
+                      inputWrapper: "shadow-sm backdrop-blur-sm h-auto rounded-none border border-gray-200 dark:border-gray-800"
+                    }}
+                    aria-label="Location input"
+                    disabled={locationLoading}
+                  />
+                  <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+                    <SearchIcon />
+                  </div>
+                </div>
+                <Button 
+                  type="submit" 
+                  variant="solid"
+                  className="bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-100 dark:text-black text-white shadow-md px-6 py-3 h-auto rounded-none w-full sm:w-auto transition-all duration-200"
+                  disabled={loading || locationLoading}
+                >
+                  {loading ? "..." : 'Search'}
+                </Button>
+              </div>
+              <div className="flex justify-between items-center px-1">
+                <div className="text-sm text-gray-500 dark:text-gray-400 font-light">
+                  <p>Examples:</p>
+                  <p>• City: Modesto, CA</p>
+                  <p>• ZIP: 83204</p>
+                  <p>• Landmark: Lincoln Park, Los Angeles, CA</p>
+                </div>
+                {(loading || locationLoading) && (
+                  <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2 font-light">
+                    <Spinner className="w-3 h-3 text-current" />
+                    {locationLoading ? 'Getting location...' : 'Searching weather...'}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant={isUsingCurrentLocation ? "solid" : "ghost"}
+                onClick={handleGetLocation}
+                disabled={loading || locationLoading}
+                className={`px-6 py-3 rounded-none flex items-center justify-center gap-2 w-full sm:w-auto transition-all duration-200 ${isUsingCurrentLocation 
+                  ? "bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-100 dark:text-black text-white shadow-md" 
+                  : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 border border-gray-200 dark:border-gray-800"}`}
+              >
+                {locationLoading ? (
+                  <Spinner className="w-4 h-4 text-current" />
+                ) : (
+                  <>
+                    {isUsingCurrentLocation ? (
+                      <>
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                        <span>Using Current Location</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                        </svg>
+                        <span>Use My Location</span>
+                      </>
+                    )}
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </Card>
+
+        {error && (
+          <Card className="backdrop-blur-md bg-white/80 dark:bg-black/50 shadow-2xl border-0 relative overflow-hidden">
+            <div className="absolute inset-0 bg-[url('/anime-dots.png')] opacity-[0.02]"></div>
+            <div className="p-6 relative">
+              <div className="flex items-start gap-4">
+                <div className="p-2 rounded-none bg-red-50 dark:bg-red-900/20">
+                  <svg
+                    className="w-5 h-5 text-red-600 dark:text-red-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-red-600 dark:text-red-400">
+                    An error occurred
+                  </h3>
+                  <p className="mt-1 text-gray-600 dark:text-gray-400 font-light">
+                    {error}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {weatherData && (
+          <Card className="backdrop-blur-md bg-white/80 dark:bg-black/50 shadow-2xl border-0 relative overflow-hidden">
+            <div className="absolute inset-0 bg-[url('/anime-dots.png')] opacity-[0.02]"></div>
+            <div className="space-y-6 p-6 relative">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+                    {weatherData.temp}
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400 text-lg font-light">{weatherData.name}</p>
+                </div>
+                {weatherData.icon && (
+                  <div className="p-2 bg-gray-50/50 dark:bg-gray-900/50 rounded-none">
+          <Image
+                      src={weatherData.icon}
+                      alt={weatherData.condition}
+                      width={75}
+                      height={75}
+                      className="transform scale-110"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-gray-50/50 dark:bg-gray-900/50 p-4 rounded-none border border-gray-200 dark:border-gray-800">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 font-light">Condition</p>
+                  <p className="font-medium text-gray-900 dark:text-gray-100">{weatherData.condition}</p>
+                </div>
+                <div className="bg-gray-50/50 dark:bg-gray-900/50 p-4 rounded-none border border-gray-200 dark:border-gray-800">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 font-light">Humidity</p>
+                  <p className="font-medium text-gray-900 dark:text-gray-100">{weatherData.humidity}%</p>
+                </div>
+                <div className="bg-gray-50/50 dark:bg-gray-900/50 p-4 rounded-none border border-gray-200 dark:border-gray-800">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 font-light">Wind Speed</p>
+                  <p className="font-medium text-gray-900 dark:text-gray-100">{weatherData.windSpeed}</p>
+                </div>
+                <div className="bg-gray-50/50 dark:bg-gray-900/50 p-4 rounded-none border border-gray-200 dark:border-gray-800">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 font-light">Wind Direction</p>
+                  <p className="font-medium text-gray-900 dark:text-gray-100">{weatherData.windDirection}</p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50/50 dark:bg-gray-900/50 p-4 rounded-none border border-gray-200 dark:border-gray-800">
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-light">Detailed Forecast</p>
+                <p className="mt-2 text-gray-900 dark:text-gray-100 leading-relaxed font-light">
+                  {weatherData.detailedForecast}
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Support button */}
+        <div className="text-center pt-8">
           <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            href="https://moikas.com/discount/moikapy"
             target="_blank"
             rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-lg shadow-md hover:shadow-lg"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+              />
+            </svg>
+            Support the Developer
           </a>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
+    </main>
   );
 }
