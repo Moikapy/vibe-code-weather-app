@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, Input, Button, Spinner } from '@heroui/react';
 import Image from 'next/image';
 
@@ -68,16 +68,17 @@ export default function Home() {
     }
   };
 
-  const handleGetLocation = async () => {
+  const handleGetLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser');
+      return;
+    }
+
     setLocationLoading(true);
     setError(null);
     setCity('');
 
     try {
-      if (!navigator.geolocation) {
-        throw new Error('Geolocation is not supported by your browser');
-      }
-
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject);
       });
@@ -94,11 +95,11 @@ export default function Home() {
     } finally {
       setLocationLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     handleGetLocation();
-  }, []);
+  }, [handleGetLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
