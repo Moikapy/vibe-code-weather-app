@@ -5,15 +5,12 @@
   "license": "MIT",
   "scripts": {
     "dev": "next dev --turbopack",
-    "prebuild": "node scripts/generate-icons.js",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "generate-icons": "node scripts/generate-icons.js"
+    "lint": "next lint"
   },
   "dependencies": {
     "@heroui/react": "^2.7.8",
-    "canvas": "^2.11.2",
     "framer-motion": "^12.9.2",
     "next": "15.3.1",
     "react": "^19.0.0",
