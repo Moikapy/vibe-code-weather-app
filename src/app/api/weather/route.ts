@@ -258,7 +258,24 @@ export async function GET(request: Request) {
       }
       
       coords = { lat: latitude, lon: longitude };
-      locationName = 'Current Location';
+      // Reverse geocode to get city, state
+      let resolvedName = null;
+      try {
+        const reverseGeocodeUrl = `https://geocode.xyz/${latitude},${longitude}?geoit=json&auth=${process.env.GEOCODE_API_KEY}`;
+        const reverseRes = await fetch(reverseGeocodeUrl, { next: { revalidate: 3600 } });
+        const reverseData = await reverseRes.json();
+        if (reverseData.error) throw new Error(reverseData.error.description);
+        if (reverseData.city && reverseData.state) {
+          resolvedName = `${reverseData.city}, ${reverseData.state}`;
+        } else if (reverseData.city) {
+          resolvedName = reverseData.city;
+        } else {
+          resolvedName = 'Current Location';
+        }
+      } catch {
+        resolvedName = 'Current Location';
+      }
+      locationName = resolvedName;
     } else if (location) {
       const geoResult = await geocodeCity(location);
       coords = { lat: geoResult.lat, lon: geoResult.lon };
